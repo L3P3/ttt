@@ -1,0 +1,189 @@
+<!doctype html>
+<html>
+	<head>
+		<title>TTT</title>
+		<style>
+			.feld {
+				position: absolute;
+				width: 25vmin;
+				height: 25vmin;
+				font-size: 20vmin;
+			}
+			.feld.belegt_o, .feld.belegt_x {
+				opacity: .5;
+			}
+			.feld.belegt_o {
+				color: red;
+			}
+			.feld.belegt_x {
+				color: blue;
+			}
+			.feld.sieg {
+				background: black;
+			}
+		</style>
+	</head>
+	<body>
+		<script src="https://l3p3.de/shr/lui.dev.js"></script>
+		<script>
+			const {
+				hook_dom,
+				hook_reducer,
+				node_dom,
+				node_map,
+			} = lui;
+
+			const VALUE_NONE = 0;
+			const VALUE_O = 1;
+			const VALUE_X = 2;
+
+			const CMD_RESET = 0;
+			const CMD_FIELD_CLICK = 1;
+
+			const reihen = [
+				// horizontal
+				[0, 1, 2], [3, 4, 5], [6, 7, 8],
+				// vertikal
+				[0, 3, 6], [1, 4, 7], [2, 5, 8],
+				// diagonal
+				[0, 4, 8], [2, 4, 6],
+			];
+
+			const felder_reihen = (
+				new Array(9)
+				.fill(null)
+				.map((_, index) =>
+					reihen
+					.filter(reihe => reihe.includes(index))
+				)
+			);
+
+			const reducer = [
+				// RESET
+				() => ({
+					felder: (
+						new Array(9)
+						.fill(null)
+						.map((_, index) => ({
+							id: index,
+							value: VALUE_NONE,
+						}))
+					),
+					felder_frei: 9,
+					siegerreihe: undefined,
+					spieler: VALUE_X,
+				}),
+
+				// FIELD_CLICK
+				(state, id) => {
+					const felder = (
+						state.felder
+						.map(feld =>
+							feld.id !== id
+							?	feld
+							:	{
+									...feld,
+									value: state.spieler,
+								}
+						)
+					);
+					return {
+						...state,
+						felder,
+						felder_frei: state.felder_frei - 1,
+						siegerreihe: (
+							felder_reihen[id].find(reihe =>
+								reihe.every(reihe_feld =>
+									felder[reihe_feld].value === state.spieler
+								)
+							)
+						),
+						spieler: (
+							state.spieler === VALUE_X
+							?   VALUE_O
+							:   VALUE_X
+						),
+					};
+				},
+			];
+
+			const Feld_text_map = [
+				'&nbsp;',
+				'O',
+				'X',
+			];
+
+			const Feld_position_map = [
+				[0, 0], [1, 0], [2, 0],
+				[0, 1], [1, 1], [2, 1],
+				[0, 2], [1, 2], [2, 2],
+			];
+
+			const Feld = ({
+				dispatch,
+				I: {
+					id,
+					value,
+				},
+				siegerreihe,
+			}) => {
+				const [x, y] = Feld_position_map[id];
+				hook_dom('button', {
+					F: {
+						feld: true,
+						sieg: siegerreihe?.includes(id),
+						belegt_o: value === VALUE_O,
+						belegt_x: value === VALUE_X,
+					},
+					disabled: !!siegerreihe,
+					innerHTML: Feld_text_map[value],
+					onclick: () => {
+						value === VALUE_NONE &&
+						dispatch(CMD_FIELD_CLICK, id);
+					},
+					S: {
+						transform: `translate3d(${x * 25}vmin, ${y * 25}vmin, 0)`,
+					},
+				});
+				return null;
+			}
+
+			lui.init(() => {
+				const [state, dispatch] = hook_reducer(reducer);
+
+				return [
+					null,
+					[
+						node_dom('h1[innerText=TTT]'),
+						node_dom('p', null, [
+							node_dom('span', {
+								innerText: (
+									state.siegerreihe
+									?	`Spieler ${Feld_text_map[state.spieler]} wäre jetzt sonst dran!`
+									: state.felder_frei > 0
+									?	`Spieler ${Feld_text_map[state.spieler]} ist dran!`
+									:	'Tja, dumm gelaufen.'
+								),
+							}),
+							node_dom('button[style=margin-left:10px]', {
+								disabled: state.felder_frei === 9,
+								innerText: (
+									state.felder_frei > 0
+									?	'Mir egal! Ich will neu anfangen!'
+									:	'Dann fang ich eben neu an!'
+								),
+								onclick: () => {
+									dispatch(CMD_RESET);
+								},
+							}),
+						]),
+						node_map(Feld, state.felder, {
+							dispatch,
+							siegerreihe: state.siegerreihe
+						}),
+					],
+				];
+			});
+		</script>
+	</body>
+</html>
